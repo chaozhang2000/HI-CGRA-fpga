@@ -52,7 +52,6 @@
 #include "xaxidma.h"
 #include "xparameters.h"
 #include "xil_exception.h"
-#include "xtime_l.h"
 
 #define BASEADDR 0xA0010000
 
@@ -104,22 +103,17 @@ int sd_read_data(char *file_name,u32 src_addr,u32 byte_len){
 	f_close(&fil);
 	return 0;
 }
-void kernel(int *line1,int *result, long k){
-   int kernel[5]= {1,2,3,2,1};
-   result[k-2] = line1[k-2]*kernel[0] + line1[k-1]*kernel[1] + line1[k]*kernel[2] + line1[k+1]*kernel[3] + line1[k+2]*kernel[4];
- }
-
 int main()
 {
     init_platform();
 
     platform_init_fs();
     char bitstream[7744];
-    sd_read_data("0:/fir.bin",(u32)(bitstream),7744);
+    sd_read_data("0:/bit.bin",(u32)(bitstream),7744);
 
     FILINFO fileInfo1;
-    f_stat("0:/fir.bin",&fileInfo1);
-    xil_printf("fir.bin file size: %d \n\r",fileInfo1.fsize);
+    f_stat("0:/bit.bin",&fileInfo1);
+    xil_printf("bit.bin file size: %d \n\r",fileInfo1.fsize);
 
     XAxiDma axidma;
     XAxiDma_Config *config;
@@ -164,29 +158,20 @@ int main()
     print("dma transform config data to cgra \n\r");
 
     //load data
-    int data1[200] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,
-    1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,
-    1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,
-    1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,
-    1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,
-    1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,
-    1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,
-    1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,
-    1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,
-    1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20};
-
-
-    int* data2 = (int *)BUFFER;
+    int data1[20] ={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20};
+    int data2[20] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20};
+    int data3[20] ={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20};
+    int* data4 = (int *)BUFFER;
     Xil_DCacheFlush();
-    int* datas[2]; datas[0] = data1; datas[1] = data2;
+    int* datas[4]; datas[0] = data1; datas[1] = data2; datas[2] = data3; datas[3] = data4;
     writecgrareg(0,2);
-    for(int i = 0;i<1;i++){
-      xil_printf("load data %d\n\r",i);
-      writecgrareg(2<<2,0);//memnum
+    for(int i = 0;i<3;i++){
+    xil_printf("load data %d\n\r",i);
+      writecgrareg(2<<2,i);//memnum
       writecgrareg(3<<2,0);//startaddr
       writecgrareg(4<<2,0);//addaddr
-      XAxiDma_SimpleTransfer(&axidma, (uintptr_t)datas[0], 200*4, XAXIDMA_DMA_TO_DEVICE);
-      while(XAxiDma_Busy(&axidma, XAXIDMA_DMA_TO_DEVICE)){;};
+      XAxiDma_SimpleTransfer(&axidma, (uintptr_t)datas[i], 20*4, XAXIDMA_DMA_TO_DEVICE);
+      while(XAxiDma_Busy(&axidma, XAXIDMA_DMA_TO_DEVICE)){};
 
     }
 
@@ -195,52 +180,25 @@ int main()
     writecgrareg(1<<2,0);
     if(readcgrareg(1<<2) == 1){
     	xil_printf("err finished reg is 1 before exe");
-    	return 0;
+    	return;
     }
     writecgrareg(0,3);
-    XTime t_exestart;
-    XTime_GetTime(&t_exestart);
     while(readcgrareg(0)!=0);
-    XTime t_exeend;
-    XTime_GetTime(&t_exeend);
     xil_printf("exe finish, finish reg = %d\n\r", readcgrareg(1<<2));
 
 
     //readdata
-    XTime t_readstart;
-    XTime_GetTime(&t_readstart);
-    writecgrareg(2<<2,1); //读哪个寄存器
+    writecgrareg(2<<2,3);
     writecgrareg(3<<2,0);
     writecgrareg(4<<2,0);
-    writecgrareg(5<<2,200);
+    writecgrareg(5<<2,20);
 
-    XAxiDma_SimpleTransfer(&axidma, (uintptr_t)BUFFER, 200*4, XAXIDMA_DEVICE_TO_DMA);
+    XAxiDma_SimpleTransfer(&axidma, (uintptr_t)BUFFER, 20*4, XAXIDMA_DEVICE_TO_DMA);
     writecgrareg(0,4);
     while(XAxiDma_Busy(&axidma, XAXIDMA_DEVICE_TO_DMA)){};
-    XTime t_readend;
-    XTime_GetTime(&t_readend);
-    for(int i = 0; i<200 ;i ++){
-    	xil_printf("data %d = %d\n\r",i,data2[i]);
+    for(int i = 0; i<20 ;i ++){
+    	xil_printf("data %d = %d\n\r",i,data4[i]);
     }
-    xil_printf("f = %ld HZ\n\r",COUNTS_PER_SECOND);
-    xil_printf("exe time\n\r");
-    xil_printf("exe time = %ld\n\r",t_exeend-t_exestart);
-    xil_printf("read time\n\r");
-    xil_printf("read time = %ld\n\r",t_readend-t_readstart);
-
-
-    Xil_DCacheFlush();
-    XTime_GetTime(&t_exestart);
-    int kernel[5]= {1,2,3,2,1};
-    for (long i=2;i<200-2;i++){
-    	   for(int j =-2 ; j<=2 ; j++){
-    		   data2[i-2] += data1[i+j]*kernel[j+2];
-    	   }
-    	   //kernel(data1,data2,i);
-    }
-    XTime_GetTime(&t_exeend);
-    xil_printf("cpu exe time\n\r");
-    xil_printf("cpu exe time = %ld\n\r",t_exeend-t_exestart);
 
     cleanup_platform();
     return 0;

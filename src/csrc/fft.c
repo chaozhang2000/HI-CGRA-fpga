@@ -1,50 +1,3 @@
-/******************************************************************************
-*
-* Copyright (C) 2009 - 2014 Xilinx, Inc.  All rights reserved.
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
-*
-* Use of the Software is limited solely to applications:
-* (a) running on a Xilinx device, or
-* (b) that interact with a Xilinx device through a bus or interconnect.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-* XILINX  BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-* WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF
-* OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-* SOFTWARE.
-*
-* Except as contained in this notice, the name of the Xilinx shall not be used
-* in advertising or otherwise to promote the sale, use or other dealings in
-* this Software without prior written authorization from Xilinx.
-*
-******************************************************************************/
-
-/*
- * helloworld.c: simple test application
- *
- * This application configures UART 16550 to baud rate 9600.
- * PS7 UART (Zynq) is not initialized by this application, since
- * bootrom/bsp configures it to baud rate 115200
- *
- * ------------------------------------------------
- * | UART TYPE   BAUD RATE                        |
- * ------------------------------------------------
- *   uartns550   9600
- *   uartlite    Configurable only in HW design
- *   ps7_uart    115200 (configured by bootrom/bsp)
- */
-
 #include <stdio.h>
 #include "platform.h"
 #include "xil_printf.h"
@@ -52,11 +5,12 @@
 #include "xaxidma.h"
 #include "xparameters.h"
 #include "xil_exception.h"
+#include "xtime_l.h"
 
 #define BASEADDR 0xA0010000
 
 #define BUFFER 0x10000000
-
+#define TIMES 10
 int readcgrareg(uintptr_t addr){
     volatile int* addr1= (volatile int *)(addr + BASEADDR);
 	return *addr1;
@@ -103,17 +57,38 @@ int sd_read_data(char *file_name,u32 src_addr,u32 byte_len){
 	f_close(&fil);
 	return 0;
 }
+void fftkernel(int *in,int *w,int *out,int* m,int j, int k){
+	int p = k+j;
+	int q = k + j + ((*m)>>1);
+	int w_rindex = j*2;
+	int w_iindex = j*2+1;
+	int p_rindex = p*2;
+	int p_iindex = p*2+1;
+	int q_rindex = q*2;
+	int q_iindex = q*2+1;
+
+	int inpr = in[p_rindex];
+	int inpi = in[p_iindex];
+	int inqr = in[q_rindex];
+	int inqi = in[q_iindex];
+	int wr = w[w_rindex];
+	int wi = w[w_iindex];
+    out[p_rindex] = inpr + ((inqr *wr - inqi * wi)>>TIMES);
+		out[p_iindex] = inpi + ((inqr* wi + wr*inqi)>>TIMES);
+    out[q_rindex] = inpr + ((- inqr *wr + inqi * wi)>>TIMES);
+		out[q_iindex] = inpi+(( - inqr* wi - wr*inqi)>>TIMES);
+}
 int main()
 {
     init_platform();
 
     platform_init_fs();
     char bitstream[7744];
-    sd_read_data("0:/bit.bin",(u32)(bitstream),7744);
+    sd_read_data("0:/fft.bin",(u32)(bitstream),7744);
 
     FILINFO fileInfo1;
-    f_stat("0:/bit.bin",&fileInfo1);
-    xil_printf("bit.bin file size: %d \n\r",fileInfo1.fsize);
+    f_stat("0:/fft.bin",&fileInfo1);
+    xil_printf("fft.bin file size: %d \n\r",fileInfo1.fsize);
 
     XAxiDma axidma;
     XAxiDma_Config *config;
@@ -154,23 +129,24 @@ int main()
     writecgrareg(0,1);
     print("change cgra state to 1\n\r");
     Xil_DCacheFlush();
-    XAxiDma_SimpleTransfer(&axidma, (uintptr_t)bitstream, 7744 * 4, XAXIDMA_DMA_TO_DEVICE);
+    XAxiDma_SimpleTransfer(&axidma, (uintptr_t)bitstream, 7744, XAXIDMA_DMA_TO_DEVICE);
     print("dma transform config data to cgra \n\r");
 
     //load data
-    int data1[20] ={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20};
-    int data2[20] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20};
-    int data3[20] ={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20};
-    int* data4 = (int *)BUFFER;
+		int butterfly_i[16] = {1024,0,1024,0,1024,0,1024,0,-1024,0,-1024,0,-1024,0,-1024,0};
+		int butterfly_o[16] = {0};
+		int w[16] = {1024,0,724,-724,0,-1023,-724,-724,0,0,0,0,0,0,0,0};
+		int m[16] = {2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+
     Xil_DCacheFlush();
-    int* datas[4]; datas[0] = data1; datas[1] = data2; datas[2] = data3; datas[3] = data4;
+    int* datas[4]; datas[0] = butterfly_i; datas[1] = butterfly_o; datas[2] = w; datas[3] = m;
     writecgrareg(0,2);
-    for(int i = 0;i<3;i++){
+    for(int i = 0;i<4;i++){
     xil_printf("load data %d\n\r",i);
       writecgrareg(2<<2,i);//memnum
       writecgrareg(3<<2,0);//startaddr
       writecgrareg(4<<2,0);//addaddr
-      XAxiDma_SimpleTransfer(&axidma, (uintptr_t)datas[i], 20*4, XAXIDMA_DMA_TO_DEVICE);
+      XAxiDma_SimpleTransfer(&axidma, (uintptr_t)datas[i], 16*4, XAXIDMA_DMA_TO_DEVICE);
       while(XAxiDma_Busy(&axidma, XAXIDMA_DMA_TO_DEVICE)){};
 
     }
@@ -183,22 +159,43 @@ int main()
     	return;
     }
     writecgrareg(0,3);
+    XTime t_exestart;
+    XTime_GetTime(&t_exestart);
     while(readcgrareg(0)!=0);
+    XTime t_exeend;
+    XTime_GetTime(&t_exeend);
     xil_printf("exe finish, finish reg = %d\n\r", readcgrareg(1<<2));
 
 
     //readdata
-    writecgrareg(2<<2,3);
+    writecgrareg(2<<2,1);
     writecgrareg(3<<2,0);
     writecgrareg(4<<2,0);
-    writecgrareg(5<<2,20);
+    writecgrareg(5<<2,16);
 
-    XAxiDma_SimpleTransfer(&axidma, (uintptr_t)BUFFER, 20*4, XAXIDMA_DEVICE_TO_DMA);
+    XAxiDma_SimpleTransfer(&axidma, (uintptr_t)BUFFER, 16*4, XAXIDMA_DEVICE_TO_DMA);
+    int *buffer = (int*)BUFFER;
     writecgrareg(0,4);
     while(XAxiDma_Busy(&axidma, XAXIDMA_DEVICE_TO_DMA)){};
-    for(int i = 0; i<20 ;i ++){
-    	xil_printf("data %d = %d\n\r",i,data4[i]);
+    for(int i = 0; i<16 ;i ++){
+    	xil_printf("data %d = %d\n\r",i,buffer[i]);
     }
+    xil_printf("f = %ld HZ\n\r",COUNTS_PER_SECOND);
+    xil_printf("exe time\n\r");
+    xil_printf("exe time = %ld\n\r",t_exeend-t_exestart);
+
+
+    Xil_DCacheFlush();
+    XTime_GetTime(&t_exestart);
+
+    for (int k=0;k<8;k+=m[0]){
+    	for(int j=0;j<m[0]/2;j++){
+    		fftkernel(butterfly_i,w,butterfly_o,m,j,k);
+    	}
+    }
+    XTime_GetTime(&t_exeend);
+    xil_printf("cpu exe time\n\r");
+    xil_printf("cpu exe time = %ld\n\r",t_exeend-t_exestart);
 
     cleanup_platform();
     return 0;

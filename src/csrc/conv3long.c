@@ -161,7 +161,7 @@ int main()
     writecgrareg(0,1);
     print("change cgra state to 1\n\r");
     Xil_DCacheFlush();
-    XAxiDma_SimpleTransfer(&axidma, (uintptr_t)bitstream, 7744 * 4, XAXIDMA_DMA_TO_DEVICE);
+    XAxiDma_SimpleTransfer(&axidma, (uintptr_t)bitstream, 7744, XAXIDMA_DMA_TO_DEVICE);
     print("dma transform config data to cgra \n\r");
 
     //load data

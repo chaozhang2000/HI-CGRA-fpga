@@ -225,8 +225,8 @@ int main()
     xil_printf("f = %ld HZ\n\r",COUNTS_PER_SECOND);
     xil_printf("exe time\n\r");
     xil_printf("exe time = %ld\n\r",t_exeend-t_exestart);
-    xil_printf("read time\n\r");
-    xil_printf("read time = %ld\n\r",t_readend-t_readstart);
+    //xil_printf("read time\n\r");
+    //xil_printf("read time = %ld\n\r",t_readend-t_readstart);
 
 
     Xil_DCacheFlush();

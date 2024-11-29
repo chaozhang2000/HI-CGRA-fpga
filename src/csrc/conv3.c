@@ -109,11 +109,11 @@ int main()
 
     platform_init_fs();
     char bitstream[7744];
-    sd_read_data("0:/bit.bin",(u32)(bitstream),7744);
+    sd_read_data("0:/conv3.bin",(u32)(bitstream),7744);
 
     FILINFO fileInfo1;
-    f_stat("0:/bit.bin",&fileInfo1);
-    xil_printf("bit.bin file size: %d \n\r",fileInfo1.fsize);
+    f_stat("0:/conv3.bin",&fileInfo1);
+    xil_printf("conv3.bin file size: %d \n\r",fileInfo1.fsize);
 
     XAxiDma axidma;
     XAxiDma_Config *config;

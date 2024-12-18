@@ -95,13 +95,6 @@ update_ip_catalog
 # To test this script, run the following commands from Vivado Tcl console:
 # source design_1_script.tcl
 
-
-# The design that will be created by this Tcl script contains the following 
-# module references:
-# data_source_10_parallel_5MHz
-
-# Please add the sources of those modules before sourcing this Tcl script.
-
 # If there is no project opened, this script will create a
 # project, but make sure you do not have an existing project
 # <./myproj/project_1.xpr> in the current working folder.
@@ -112,9 +105,6 @@ if { $list_projs eq "" } {
    set_property BOARD_PART xilinx.com:zcu106:part0:2.6 [current_project]
 }
 
-add_files -norecurse "${origin_dir}/src/v_source/concatenate.v"
-add_files -norecurse "${origin_dir}/src/v_source/data_source_serial.v"
-add_files -norecurse "${origin_dir}/src/v_source/data_source_10_parallel_5MHz.v"
 
 # CHANGE DESIGN NAME HERE
 variable design_name
@@ -195,7 +185,6 @@ if { $bCheckIPs == 1 } {
 user.org:user:CGRA:1.0\
 xilinx.com:ip:axi_dma:7.1\
 xilinx.com:ip:smartconnect:1.0\
-xilinx.com:ip:ila:6.2\
 xilinx.com:ip:proc_sys_reset:5.0\
 xilinx.com:ip:zynq_ultra_ps_e:3.4\
 "
@@ -215,31 +204,6 @@ xilinx.com:ip:zynq_ultra_ps_e:3.4\
       set bCheckIPsPassed 0
    }
 
-}
-
-##################################################################
-# CHECK Modules
-##################################################################
-set bCheckModules 1
-if { $bCheckModules == 1 } {
-   set list_check_mods "\ 
-data_source_10_parallel_5MHz\
-"
-
-   set list_mods_missing ""
-   common::send_gid_msg -ssname BD::TCL -id 2020 -severity "INFO" "Checking if the following modules exist in the project's sources: $list_check_mods ."
-
-   foreach mod_vlnv $list_check_mods {
-      if { [can_resolve_reference $mod_vlnv] == 0 } {
-         lappend list_mods_missing $mod_vlnv
-      }
-   }
-
-   if { $list_mods_missing ne "" } {
-      catch {common::send_gid_msg -ssname BD::TCL -id 2021 -severity "ERROR" "The following module(s) are not found in the project: $list_mods_missing" }
-      common::send_gid_msg -ssname BD::TCL -id 2022 -severity "INFO" "Please add source files for the missing module(s) above."
-      set bCheckIPsPassed 0
-   }
 }
 
 if { $bCheckIPsPassed != 1 } {
@@ -295,9 +259,9 @@ proc create_root_design { parentCell } {
   # Create instance: axi_dma_0, and set properties
   set axi_dma_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_dma:7.1 axi_dma_0 ]
   set_property -dict [list \
-    CONFIG.c_include_s2mm {0} \
     CONFIG.c_include_sg {0} \
     CONFIG.c_mm2s_burst_size {256} \
+    CONFIG.c_s2mm_burst_size {256} \
     CONFIG.c_sg_length_width {26} \
   ] $axi_dma_0
 
@@ -307,35 +271,13 @@ proc create_root_design { parentCell } {
   set_property CONFIG.NUM_SI {2} $axi_smc
 
 
-  # Create instance: data_source_10_paral_0, and set properties
-  set block_name data_source_10_parallel_5MHz
-  set block_cell_name data_source_10_paral_0
-  if { [catch {set data_source_10_paral_0 [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
-     catch {common::send_gid_msg -ssname BD::TCL -id 2095 -severity "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
-     return 1
-   } elseif { $data_source_10_paral_0 eq "" } {
-     catch {common::send_gid_msg -ssname BD::TCL -id 2096 -severity "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
-     return 1
-   }
-  
-  # Create instance: ila_0, and set properties
-  set ila_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:ila:6.2 ila_0 ]
-  set_property -dict [list \
-    CONFIG.C_MONITOR_TYPE {Native} \
-    CONFIG.C_NUM_OF_PROBES {7} \
-    CONFIG.C_PROBE0_WIDTH {32} \
-    CONFIG.C_PROBE2_WIDTH {32} \
-    CONFIG.C_PROBE4_WIDTH {32} \
-  ] $ila_0
-
-
   # Create instance: ps8_0_axi_periph, and set properties
   set ps8_0_axi_periph [ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_interconnect:2.1 ps8_0_axi_periph ]
   set_property CONFIG.NUM_MI {2} $ps8_0_axi_periph
 
 
-  # Create instance: rst_ps8_0_199M, and set properties
-  set rst_ps8_0_199M [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 rst_ps8_0_199M ]
+  # Create instance: rst_ps8_0_187M, and set properties
+  set rst_ps8_0_187M [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 rst_ps8_0_187M ]
 
   # Create instance: zynq_ultra_ps_e_0, and set properties
   set zynq_ultra_ps_e_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:zynq_ultra_ps_e:3.4 zynq_ultra_ps_e_0 ]
@@ -392,10 +334,10 @@ MIO#GPIO1 MIO#GPIO1 MIO#SD 1#SD 1#SD 1#SD 1#SD 1#SD 1#SD 1#SD 1#SD 1#SD 1#SD 1#S
     CONFIG.PSU__CRF_APB__DPDMA_REF_CTRL__FREQMHZ {600} \
     CONFIG.PSU__CRF_APB__DPDMA_REF_CTRL__SRCSEL {APLL} \
     CONFIG.PSU__CRF_APB__DPLL_CTRL__SRCSEL {PSS_REF_CLK} \
-    CONFIG.PSU__CRF_APB__DP_AUDIO_REF_CTRL__ACT_FREQMHZ {24.997503} \
+    CONFIG.PSU__CRF_APB__DP_AUDIO_REF_CTRL__ACT_FREQMHZ {24.997501} \
     CONFIG.PSU__CRF_APB__DP_AUDIO_REF_CTRL__SRCSEL {RPLL} \
     CONFIG.PSU__CRF_APB__DP_AUDIO__FRAC_ENABLED {0} \
-    CONFIG.PSU__CRF_APB__DP_STC_REF_CTRL__ACT_FREQMHZ {26.664003} \
+    CONFIG.PSU__CRF_APB__DP_STC_REF_CTRL__ACT_FREQMHZ {26.783037} \
     CONFIG.PSU__CRF_APB__DP_STC_REF_CTRL__SRCSEL {RPLL} \
     CONFIG.PSU__CRF_APB__DP_VIDEO_REF_CTRL__ACT_FREQMHZ {299.970032} \
     CONFIG.PSU__CRF_APB__DP_VIDEO_REF_CTRL__SRCSEL {VPLL} \
@@ -454,9 +396,9 @@ MIO#GPIO1 MIO#GPIO1 MIO#SD 1#SD 1#SD 1#SD 1#SD 1#SD 1#SD 1#SD 1#SD 1#SD 1#SD 1#S
     CONFIG.PSU__CRL_APB__PCAP_CTRL__ACT_FREQMHZ {187.481262} \
     CONFIG.PSU__CRL_APB__PCAP_CTRL__FREQMHZ {200} \
     CONFIG.PSU__CRL_APB__PCAP_CTRL__SRCSEL {IOPLL} \
-    CONFIG.PSU__CRL_APB__PL0_REF_CTRL__ACT_FREQMHZ {199.980026} \
-    CONFIG.PSU__CRL_APB__PL0_REF_CTRL__FREQMHZ {200} \
-    CONFIG.PSU__CRL_APB__PL0_REF_CTRL__SRCSEL {RPLL} \
+    CONFIG.PSU__CRL_APB__PL0_REF_CTRL__ACT_FREQMHZ {149.985016} \
+    CONFIG.PSU__CRL_APB__PL0_REF_CTRL__FREQMHZ {150} \
+    CONFIG.PSU__CRL_APB__PL0_REF_CTRL__SRCSEL {IOPLL} \
     CONFIG.PSU__CRL_APB__QSPI_REF_CTRL__ACT_FREQMHZ {124.987511} \
     CONFIG.PSU__CRL_APB__QSPI_REF_CTRL__FREQMHZ {125} \
     CONFIG.PSU__CRL_APB__QSPI_REF_CTRL__SRCSEL {IOPLL} \
@@ -670,36 +612,20 @@ Port;FD4A0000;FD4AFFFF;1|FPD;DPDMA;FD4C0000;FD4CFFFF;1|FPD;DDR_XMPU5_CFG;FD05000
   ] $zynq_ultra_ps_e_0
 
 
-  # Create interface connections
-  connect_bd_intf_net -intf_net axi_dma_0_M_AXIS_MM2S [get_bd_intf_pins CGRA_0/axistream_s] [get_bd_intf_pins axi_dma_0/M_AXIS_MM2S]
-  connect_bd_intf_net -intf_net axi_dma_0_M_AXI_MM2S [get_bd_intf_pins axi_dma_0/M_AXI_MM2S] [get_bd_intf_pins axi_smc/S00_AXI]
-  connect_bd_intf_net -intf_net axi_smc_M00_AXI [get_bd_intf_pins axi_smc/M00_AXI] [get_bd_intf_pins zynq_ultra_ps_e_0/S_AXI_HPC0_FPD]
-  connect_bd_intf_net -intf_net ps8_0_axi_periph_M00_AXI [get_bd_intf_pins axi_dma_0/S_AXI_LITE] [get_bd_intf_pins ps8_0_axi_periph/M00_AXI]
-  connect_bd_intf_net -intf_net ps8_0_axi_periph_M01_AXI [get_bd_intf_pins CGRA_0/axilite_s] [get_bd_intf_pins ps8_0_axi_periph/M01_AXI]
-  connect_bd_intf_net -intf_net zynq_ultra_ps_e_0_M_AXI_HPM0_FPD [get_bd_intf_pins ps8_0_axi_periph/S00_AXI] [get_bd_intf_pins zynq_ultra_ps_e_0/M_AXI_HPM0_FPD]
-
-  # Create port connections
-  connect_bd_net -net CGRA_0_io_streamout_0_data [get_bd_pins CGRA_0/io_streamout_0_data] [get_bd_pins ila_0/probe4]
-  connect_bd_net -net CGRA_0_io_streamout_0_valid [get_bd_pins CGRA_0/io_streamout_0_valid] [get_bd_pins ila_0/probe5]
-  connect_bd_net -net CGRA_0_io_trigger [get_bd_pins CGRA_0/io_trigger] [get_bd_pins data_source_10_paral_0/trigger] [get_bd_pins ila_0/probe6]
-  connect_bd_net -net data_source_10_paral_0_out_channel1_data1 [get_bd_pins CGRA_0/io_streamin_0_data] [get_bd_pins data_source_10_paral_0/out_channel1_data1] [get_bd_pins ila_0/probe0]
-  connect_bd_net -net data_source_10_paral_0_out_channel1_data1_valid [get_bd_pins CGRA_0/io_streamin_0_valid] [get_bd_pins data_source_10_paral_0/out_channel1_data1_valid] [get_bd_pins ila_0/probe1]
-  connect_bd_net -net data_source_10_paral_0_out_channel1_data2 [get_bd_pins CGRA_0/io_streamin_1_data] [get_bd_pins data_source_10_paral_0/out_channel1_data2] [get_bd_pins ila_0/probe2]
-  connect_bd_net -net data_source_10_paral_0_out_channel1_data2_valid [get_bd_pins CGRA_0/io_streamin_1_valid] [get_bd_pins data_source_10_paral_0/out_channel1_data2_valid] [get_bd_pins ila_0/probe3]
-  connect_bd_net -net rst_ps8_0_199M_peripheral_aresetn [get_bd_pins axi_dma_0/axi_resetn] [get_bd_pins axi_smc/aresetn] [get_bd_pins data_source_10_paral_0/rst_n] [get_bd_pins ps8_0_axi_periph/ARESETN] [get_bd_pins ps8_0_axi_periph/M00_ARESETN] [get_bd_pins ps8_0_axi_periph/M01_ARESETN] [get_bd_pins ps8_0_axi_periph/S00_ARESETN] [get_bd_pins rst_ps8_0_199M/peripheral_aresetn]
-  connect_bd_net -net rst_ps8_0_199M_peripheral_reset [get_bd_pins CGRA_0/reset] [get_bd_pins rst_ps8_0_199M/peripheral_reset]
-  connect_bd_net -net zynq_ultra_ps_e_0_pl_clk0 [get_bd_pins CGRA_0/clock] [get_bd_pins axi_dma_0/m_axi_mm2s_aclk] [get_bd_pins axi_dma_0/s_axi_lite_aclk] [get_bd_pins axi_smc/aclk] [get_bd_pins data_source_10_paral_0/clk_200MHz] [get_bd_pins ila_0/clk] [get_bd_pins ps8_0_axi_periph/ACLK] [get_bd_pins ps8_0_axi_periph/M00_ACLK] [get_bd_pins ps8_0_axi_periph/M01_ACLK] [get_bd_pins ps8_0_axi_periph/S00_ACLK] [get_bd_pins rst_ps8_0_199M/slowest_sync_clk] [get_bd_pins zynq_ultra_ps_e_0/maxihpm0_fpd_aclk] [get_bd_pins zynq_ultra_ps_e_0/pl_clk0] [get_bd_pins zynq_ultra_ps_e_0/saxihpc0_fpd_aclk]
-  connect_bd_net -net zynq_ultra_ps_e_0_pl_resetn0 [get_bd_pins rst_ps8_0_199M/ext_reset_in] [get_bd_pins zynq_ultra_ps_e_0/pl_resetn0]
 
   # Create address segments
   assign_bd_address -offset 0x00000000 -range 0x80000000 -target_address_space [get_bd_addr_spaces axi_dma_0/Data_MM2S] [get_bd_addr_segs zynq_ultra_ps_e_0/SAXIGP0/HPC0_DDR_LOW] -force
   assign_bd_address -offset 0xC0000000 -range 0x20000000 -target_address_space [get_bd_addr_spaces axi_dma_0/Data_MM2S] [get_bd_addr_segs zynq_ultra_ps_e_0/SAXIGP0/HPC0_QSPI] -force
+  assign_bd_address -offset 0x00000000 -range 0x80000000 -target_address_space [get_bd_addr_spaces axi_dma_0/Data_S2MM] [get_bd_addr_segs zynq_ultra_ps_e_0/SAXIGP0/HPC0_DDR_LOW] -force
+  assign_bd_address -offset 0xC0000000 -range 0x20000000 -target_address_space [get_bd_addr_spaces axi_dma_0/Data_S2MM] [get_bd_addr_segs zynq_ultra_ps_e_0/SAXIGP0/HPC0_QSPI] -force
   assign_bd_address -offset 0xA0010000 -range 0x00010000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs CGRA_0/axilite_s/Reg] -force
   assign_bd_address -offset 0xA0000000 -range 0x00010000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs axi_dma_0/S_AXI_LITE/Reg] -force
 
   # Exclude Address Segments
-  exclude_bd_addr_seg -target_address_space [get_bd_addr_spaces axi_dma_0/Data_MM2S] [get_bd_addr_segs zynq_ultra_ps_e_0/SAXIGP0/HPC0_DDR_HIGH]
+  exclude_bd_addr_seg -offset 0x000800000000 -range 0x000100000000 -target_address_space [get_bd_addr_spaces axi_dma_0/Data_MM2S] [get_bd_addr_segs zynq_ultra_ps_e_0/SAXIGP0/HPC0_DDR_HIGH]
   exclude_bd_addr_seg -offset 0xFF000000 -range 0x01000000 -target_address_space [get_bd_addr_spaces axi_dma_0/Data_MM2S] [get_bd_addr_segs zynq_ultra_ps_e_0/SAXIGP0/HPC0_LPS_OCM]
+  exclude_bd_addr_seg -offset 0x000800000000 -range 0x000100000000 -target_address_space [get_bd_addr_spaces axi_dma_0/Data_S2MM] [get_bd_addr_segs zynq_ultra_ps_e_0/SAXIGP0/HPC0_DDR_HIGH]
+  exclude_bd_addr_seg -offset 0xFF000000 -range 0x01000000 -target_address_space [get_bd_addr_spaces axi_dma_0/Data_S2MM] [get_bd_addr_segs zynq_ultra_ps_e_0/SAXIGP0/HPC0_LPS_OCM]
 
 
   # Restore current instance
@@ -709,24 +635,5 @@ Port;FD4A0000;FD4AFFFF;1|FPD;DPDMA;FD4C0000;FD4CFFFF;1|FPD;DDR_XMPU5_CFG;FD05000
   save_bd_design
 }
 # End of create_root_design()
-
-
-##################################################################
-# MAIN FLOW
-##################################################################
-create_root_design ""
-
-make_wrapper -files [get_files "${origin_dir}/${proj_name}/${proj_name}.srcs/sources_1/bd/design_1/design_1.bd"] -top
-add_files -norecurse "${origin_dir}/${proj_name}/${proj_name}.gen/sources_1/bd/design_1/hdl/design_1_wrapper.v"
-set_property top design_1_wrapper [current_fileset]
-
-#import_files -fileset constrs_1 $import_constrs_files
-launch_runs synth_1 -jobs 32
-launch_runs impl_1 -jobs 32
-launch_runs impl_1 -to_step write_bitstream -jobs 32
-wait impl_1
-open_run impl_1
-
-write_hw_platform -fixed -include_bit -force -file "${origin_dir}/${proj_name}/design_1_wrapper.xsa"
 
 
